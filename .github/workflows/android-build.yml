@@ -16,22 +16,33 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build APK
+      - name: Extract Android project
         run: |
-          if [ ! -f gradlew ]; then
-            echo "ERROR: Gradle wrapper not found."
-            echo "Upload the Android project files first."
+          mkdir -p project
+          unzip -q NAYAAB_APK_Studio_Android_Studio_Project-1.zip -d project
+
+      - name: Find Gradle wrapper
+        id: project
+        run: |
+          WRAPPER=$(find project -type f -name gradlew | head -n 1)
+          if [ -z "$WRAPPER" ]; then
+            echo "ERROR: No gradlew file found in the ZIP."
+            echo "The ZIP may not contain a complete Android project."
+            find project -maxdepth 3 -type f | head -n 50
             exit 1
           fi
-          chmod +x gradlew
+          echo "dir=$(dirname "$WRAPPER")" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        working-directory: .
+        run: |
+          chmod +x "${{ steps.project.outputs.dir }}/gradlew"
+          cd "${{ steps.project.outputs.dir }}"
           ./gradlew assembleDebug
 
       - name: Upload APK
@@ -39,6 +50,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NAYAAB-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: project/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
